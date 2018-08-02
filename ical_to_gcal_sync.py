@@ -3,6 +3,8 @@ from __future__ import print_function
 import logging
 import time
 import sys
+import string
+import re
 import googleapiclient
 from apiclient import discovery
 from oauth2client import client
@@ -88,7 +90,11 @@ def get_gcal_date(arrow_datetime):
     return {u'date': arrow_datetime.format('YYYY-MM-DD')}
 
 def convert_uid(uid):
-    return uid.lower().replace('-', '')
+    # characters allowed in the ID are those used in base32hex encoding, i.e. lowercase letters a-v and digits 0-9, see section 3.1.2 in RFC2938
+    # the length of the ID must be between 5 and 1024 characters
+    # https://developers.google.com/resources/api-libraries/documentation/calendar/v3/python/latest/calendar_v3.events.html
+    allowed_chars = string.ascii_lowercase[:22] + string.digits
+    return re.sub('[^%s]' % allowed_chars, '', uid.lower())
 
 if __name__ == '__main__':
     # setting up Google Calendar API for use
@@ -222,6 +228,6 @@ if __name__ == '__main__':
                     logger.error('HTTP Error %s' % err.resp.status)
                     raise
             except:
-                print ("Unexpected error:", sys.exc_info()[0])
+                logger.error ("Unexpected error:", sys.exc_info()[0])
                 raise
 
