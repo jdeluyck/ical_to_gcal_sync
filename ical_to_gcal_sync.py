@@ -2,12 +2,13 @@ from __future__ import print_function
 
 import logging
 import time
-
+import sys
 import googleapiclient
 from apiclient import discovery
 from oauth2client import client
 from oauth2client import tools
 from oauth2client.file import Storage
+from googleapiclient.errors import HttpError
 
 import requests
 import ics
@@ -192,7 +193,17 @@ if __name__ == '__main__':
             try:
                 time.sleep(API_SLEEP_TIME)
                 service.events().insert(calendarId=CALENDAR_ID, body=gcal_event).execute()
-            except:
+
+            except HttpError as err:
                 time.sleep(API_SLEEP_TIME)
-                service.events().update(calendarId=CALENDAR_ID, eventId=gcal_event['id'], body=gcal_event).execute()
+
+                if err.resp.status == 409: # Resource Already Exists
+                    logger.info('iCal event %s updated' % ical_event.name)
+                    service.events().update(calendarId=CALENDAR_ID, eventId=gcal_event['id'], body=gcal_event).execute()
+                else:
+                    logger.error('HTTP Error %s' % err.resp.status)
+                    raise
+                except:
+                print ("Unexpected error:", sys.exc_info()[0])
+                raise
 
