@@ -87,3 +87,9 @@ ENV/
 
 # Rope project settings
 .ropeproject
+
+# Specifics for ical_to_gcal
+ical_to_gcal_sync.json
+ical_to_gcal_sync_client_secret.json
+ical_to_gcal_sync_log.txt
+
