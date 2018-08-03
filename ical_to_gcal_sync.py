@@ -26,7 +26,7 @@ handler.setFormatter(logging.Formatter('%(asctime)s|[%(levelname)s] %(message)s'
 logger.addHandler(handler)
 
 def get_current_events():
-    """Retrives data from iCal iCal feed and returns an ics.Calendar object 
+    """Retrieves data from iCal iCal feed and returns an ics.Calendar object
     containing the parsed data.
 
     Returns the parsed Calendar object or None if an error occurs.
@@ -69,7 +69,7 @@ def get_gcal_events(service, from_time):
 
     Returns a dict containing the event(s) existing in the calendar.
     """
-    eventsResult = service.events().list(calendarId=CALENDAR_ID, timeMin=from_time, maxResults=100, singleEvents=True, orderBy='startTime', showDeleted=True).execute()
+    eventsResult = service.events().list(calendarId=CALENDAR_ID, timeMin=from_time, maxResults=CALENDAR_MAX_EVENTS, singleEvents=True, orderBy='startTime', showDeleted=True).execute()
     events = eventsResult.get('items', [])
     logger.info('> Found %d upcoming events in Google Calendar' % len(events))
     return events
@@ -90,9 +90,15 @@ def get_gcal_date(arrow_datetime):
     return {u'date': arrow_datetime.format('YYYY-MM-DD')}
 
 def convert_uid(uid):
-    # characters allowed in the ID are those used in base32hex encoding, i.e. lowercase letters a-v and digits 0-9, see section 3.1.2 in RFC2938
-    # the length of the ID must be between 5 and 1024 characters
-    # https://developers.google.com/resources/api-libraries/documentation/calendar/v3/python/latest/calendar_v3.events.html
+    """ Converts ical UID to a valid Gcal ID
+
+    Characters allowed in the ID are those used in base32hex encoding, i.e. lowercase letters a-v and digits 0-9, see section 3.1.2 in RFC2938
+    Te length of the ID must be between 5 and 1024 characters
+    https://developers.google.com/resources/api-libraries/documentation/calendar/v3/python/latest/calendar_v3.events.html
+
+    Returns:
+        ID
+    """
     allowed_chars = string.ascii_lowercase[:22] + string.digits
     return re.sub('[^%s]' % allowed_chars, '', uid.lower())
 
@@ -112,7 +118,7 @@ if __name__ == '__main__':
     logger.info('> Retrieving events from iCal feed')
     ical_cal = get_current_events()
 
-    # convert iCal event list into a dict indexed by iCal UID
+    # convert iCal event list into a dict indexed by (converted) iCal UID
     ical_events = {}
     for ev in ical_cal.events:
         # filter out events in the past, don't care about syncing them
@@ -171,6 +177,7 @@ if __name__ == '__main__':
                 or gcal_event['summary'] != ical_event.name \
                 or gcal_location != ical_location \
                 or gcal_location and gcal_event['location'] != ical_event.location:
+
                 logger.info('> Updating event "%s" due to changes ...' % (name))
                 delta = arrow.get(ical_event.end) - arrow.get(ical_event.begin)
                 # all-day events handled slightly differently
