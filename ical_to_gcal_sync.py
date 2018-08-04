@@ -89,8 +89,8 @@ def get_gcal_datetime(arrow_datetime, gcal_timezone):
 def get_gcal_date(arrow_datetime):
     return {u'date': arrow_datetime.format('YYYY-MM-DD')}
 
-def convert_uid(uid):
-    """ Converts ical UID to a valid Gcal ID
+def create_id(uid, begintime, endtime):
+    """ Converts ical UUID, begin and endtime to a valid Gcal ID
 
     Characters allowed in the ID are those used in base32hex encoding, i.e. lowercase letters a-v and digits 0-9, see section 3.1.2 in RFC2938
     Te length of the ID must be between 5 and 1024 characters
@@ -100,7 +100,16 @@ def convert_uid(uid):
         ID
     """
     allowed_chars = string.ascii_lowercase[:22] + string.digits
-    return re.sub('[^%s]' % allowed_chars, '', uid.lower())
+    temp = re.sub('[^%s]' % allowed_chars, '', uid.lower())
+    return re.sub('[^%s]' % allowed_chars, '', uid.lower()) + str(arrow.get(begintime).timestamp) + str(arrow.get(endtime).timestamp)
+
+def is_multiday_event(ical_event):
+    delta = arrow.get(ical_event.end) - arrow.get(ical_event.begin)
+
+    if delta.days >= 1:
+        return True
+    else:
+        return False
 
 if __name__ == '__main__':
     # setting up Google Calendar API for use
@@ -123,7 +132,7 @@ if __name__ == '__main__':
     for ev in ical_cal.events:
         # filter out events in the past, don't care about syncing them
         if arrow.get(ev.begin) > today:
-            ical_events[convert_uid(ev.uid)] = ev
+            ical_events[create_id(ev.uid, ev.begin, ev.end)] = ev
 
     # retrieve the Google Calendar object itself
     gcal_cal = service.calendars().get(calendarId=CALENDAR_ID).execute()
@@ -154,10 +163,13 @@ if __name__ == '__main__':
             except googleapiclient.errors.HttpError:
                 pass # event already marked as deleted
         else:
+            # Gcal items which are still in the iCal file
             ical_event = ical_events[eid]
 
             gcal_begin = arrow.get(gcal_event['start'].get('dateTime', gcal_event['start'].get('date')))
             gcal_end = arrow.get(gcal_event['end'].get('dateTime', gcal_event['end'].get('date')))
+
+            # Location changes?
             if 'location' in gcal_event:
                 gcal_location = True
             else:
@@ -176,13 +188,14 @@ if __name__ == '__main__':
                 or gcal_end != ical_event.end \
                 or gcal_event['summary'] != ical_event.name \
                 or gcal_location != ical_location \
-                or gcal_location and gcal_event['location'] != ical_event.location:
+                or gcal_location and gcal_event['location'] != ical_event.location \
+                or gcal_event['description'] != ical_event.description:
 
                 logger.info('> Updating event "%s" due to changes ...' % (name))
-                delta = arrow.get(ical_event.end) - arrow.get(ical_event.begin)
+                #delta = arrow.get(ical_event.end) - arrow.get(ical_event.begin)
                 # all-day events handled slightly differently
                 # TODO multi-day events?
-                if delta.days >= 1:
+                if is_multiday_event(ical_event):
                     gcal_event['start'] = get_gcal_date(ical_event.begin)
                     gcal_event['end'] = get_gcal_date(ical_event.end)
                 else:
@@ -191,7 +204,7 @@ if __name__ == '__main__':
                         gcal_event['end']   = get_gcal_datetime(ical_event.end, gcal_cal['timeZone'])
 
                 gcal_event['summary'] = ical_event.name
-                gcal_event['description'] = '%s (Imported from mycal.py)' % ical_event.description
+                gcal_event['description'] = ical_event.description
                 gcal_event['location'] = ical_event.location
 
                 service.events().update(calendarId=CALENDAR_ID, eventId=eid, body=gcal_event).execute()
@@ -200,17 +213,17 @@ if __name__ == '__main__':
     # now add any iCal events not already in the Google Calendar 
     logger.info('> Processing iCal events...')
     for ical_event in ical_events.values():
-        if ical_event.uid not in gcal_event_ids:
+        if create_id(ical_event.uid, ical_event.begin, ical_event.end) not in gcal_event_ids:
             gcal_event = {}
             gcal_event['summary'] = ical_event.name
-            gcal_event['id'] = convert_uid(ical_event.uid)
+            gcal_event['id'] = create_id(ical_event.uid, ical_event.begin, ical_event.end)
             gcal_event['description'] = '%s (Imported from mycal.py)' % ical_event.description
             gcal_event['location'] = ical_event.location
 
             # check if no time specified in iCal, treat as all day event if so
-            delta = arrow.get(ical_event.end) - arrow.get(ical_event.begin)
+            #delta = arrow.get(ical_event.end) - arrow.get(ical_event.begin)
             # TODO multi-day events?
-            if delta.days >= 1:
+            if is_multiday_event(ical_event):
                 gcal_event['start'] = get_gcal_date(ical_event.begin)
                 logger.info('iCal all-day event %s to be added at %s' % (ical_event.name, ical_event.begin))
                 if ical_event.has_end:
@@ -237,4 +250,3 @@ if __name__ == '__main__':
             except:
                 logger.error ("Unexpected error:", sys.exc_info()[0])
                 raise
-
