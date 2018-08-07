@@ -188,8 +188,8 @@ if __name__ == '__main__':
                 or gcal_end != ical_event.end \
                 or gcal_event['summary'] != ical_event.name \
                 or gcal_location != ical_location \
-                or gcal_location and gcal_event['location'] != ical_event.location \
-                or gcal_event['description'] != ical_event.description:
+                or gcal_location and gcal_event['location'] != ical_event.location:
+#                or gcal_event['description'] != ical_event.description:
 
                 logger.info('> Updating event "%s" due to changes ...' % (name))
                 #delta = arrow.get(ical_event.end) - arrow.get(ical_event.begin)
