@@ -182,19 +182,17 @@ if __name__ == '__main__':
 
             # if the iCal event has a different start/end time from the gcal event, 
             # update the latter with the datetimes from the iCal event. Same if
-            # event name has changed (could also check description?)
+            # event name has changed, or the location has changed.
 
             if gcal_begin != ical_event.begin \
                 or gcal_end != ical_event.end \
                 or gcal_event['summary'] != ical_event.name \
                 or gcal_location != ical_location \
                 or gcal_location and gcal_event['location'] != ical_event.location:
-#                or gcal_event['description'] != ical_event.description:
 
                 logger.info('> Updating event "%s" due to changes ...' % (name))
                 #delta = arrow.get(ical_event.end) - arrow.get(ical_event.begin)
                 # all-day events handled slightly differently
-                # TODO multi-day events?
                 if is_multiday_event(ical_event):
                     gcal_event['start'] = get_gcal_date(ical_event.begin)
                     gcal_event['end'] = get_gcal_date(ical_event.end)
@@ -206,6 +204,7 @@ if __name__ == '__main__':
                 gcal_event['summary'] = ical_event.name
                 gcal_event['description'] = ical_event.description
                 gcal_event['location'] = ical_event.location
+                gcal_event['recurrence'] = ical_event.rrule
 
                 service.events().update(calendarId=CALENDAR_ID, eventId=eid, body=gcal_event).execute()
                 time.sleep(API_SLEEP_TIME)
@@ -219,10 +218,10 @@ if __name__ == '__main__':
             gcal_event['id'] = create_id(ical_event.uid, ical_event.begin, ical_event.end)
             gcal_event['description'] = '%s (Imported from mycal.py)' % ical_event.description
             gcal_event['location'] = ical_event.location
+            gcal_event['recurrence'] = ical_event.rrule
 
             # check if no time specified in iCal, treat as all day event if so
             #delta = arrow.get(ical_event.end) - arrow.get(ical_event.begin)
-            # TODO multi-day events?
             if is_multiday_event(ical_event):
                 gcal_event['start'] = get_gcal_date(ical_event.begin)
                 logger.info('iCal all-day event %s to be added at %s' % (ical_event.name, ical_event.begin))
