@@ -24,3 +24,6 @@ LOGFILE = 'ical_to_gcal_sync_log.txt'
 
 # Time to pause between successive API calls that may trigger rate-limiting protection
 API_SLEEP_TIME = 0.05
+
+# Maximum number of events to process per run
+CALENDAR_MAX_EVENTS = 250
